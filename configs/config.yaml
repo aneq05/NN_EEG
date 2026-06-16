@@ -58,20 +58,12 @@ data:
     scaling: standard
 
 target:
-  name: contraception_class
-
-  description: >
-    Target variable created by grouping current contraception methods into
-    clinically and analytically meaningful categories.
-
+  name: mec_category
   classes:
-    0: no_current_method
-    1: permanent_method
-    2: larc
-    3: short_acting_hormonal
-    4: barrier_method
-    5: behavioral_or_natural
-    6: other_method
+    0: MEC_1_no_restriction
+    1: MEC_2_benefits_outweigh_risks
+    2: MEC_3_usually_not_recommended
+    3: MEC_4_unacceptable_health_risk
 
   class_grouping:
     no_current_method:
