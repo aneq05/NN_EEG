@@ -6,23 +6,19 @@ joblib
 tqdm
 
 scikit-learn
-imbalanced-learn
-
 torch
 torchmetrics
 lightning
-
 optuna
-
 lime
+kagglehub
 
 matplotlib
 seaborn
-plotly
+tabulate
+rich
 
 jupyter
 ipykernel
 notebook
 
-tabulate
-rich

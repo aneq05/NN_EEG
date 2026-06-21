@@ -1,272 +1,59 @@
 project:
-  name: contraception_multiclass_xai
+  name: eeg_multiclass_xai
   seed: 42
-  task_type: multiclass_classification
-  description: >
-    Multiclass classification of current contraception category using
-    demographic, reproductive and health-related features from the NSFG
-    2022-2023 Female Respondent File.
 
 paths:
-  raw_data: data/raw/NSFG_2022_2023_Female_Respondent.csv
+  raw_data: data/raw/data.csv
   processed_dir: data/processed
-  train_data: data/processed/train.csv
-  val_data: data/processed/val.csv
-  test_data: data/processed/test.csv
-
-  outputs_dir: outputs
   figures_dir: outputs/figures
   tables_dir: outputs/tables
   metrics_dir: outputs/metrics
   models_dir: outputs/models
   lime_dir: outputs/lime
+  report_dir: reports
 
 data:
-  id_column: CASEID
+  source_name: "Epileptic Seizure Recognition"
+  kaggle_slug: "harunshimanto/epileptic-seizure-recognition"
+  target_column: y
+  id_columns:
+    - Unnamed
+  test_size: 0.15
+  val_size: 0.15
+  random_state: 42
+  remove_duplicates: true
+  outlier_clip_quantiles: [0.001, 0.999]
 
-  population_filter:
-    sex: female
-    min_age: 15
-    max_age: 49
-
-  split:
-    test_size: 0.20
-    val_size: 0.20
-    stratify: true
-    random_state: 42
-
-  preprocessing:
-    missing_values:
-      - 7
-      - 8
-      - 9
-      - 77
-      - 88
-      - 99
-      - 997
-      - 998
-      - 999
-      - 9997
-      - 9998
-      - 9999
-
-    max_missing_ratio: 0.50
-    rare_category_min_frequency: 0.01
-
-    numeric_imputation: median
-    categorical_imputation: missing_category
-    scaling: standard
-
-target:
-  name: mec_category
-  classes:
-    0: MEC_1_no_restriction
-    1: MEC_2_benefits_outweigh_risks
-    2: MEC_3_usually_not_recommended
-    3: MEC_4_unacceptable_health_risk
-
-  class_grouping:
-    no_current_method:
-      - no_method
-      - not_using_currently
-
-    permanent_method:
-      - female_sterilization
-      - male_sterilization
-
-    larc:
-      - iud
-      - implant
-
-    short_acting_hormonal:
-      - pill
-      - injectable
-      - patch
-      - vaginal_ring
-
-    barrier_method:
-      - condom
-      - diaphragm
-      - cervical_cap
-
-    behavioral_or_natural:
-      - withdrawal
-      - fertility_awareness
-      - rhythm_method
-
-    other_method:
-      - emergency_contraception
-      - other
-
-features:
-  # Uzupełnij po sprawdzeniu codebooka NSFG.
-  # Poniższe nazwy są logicznymi kategoriami, niekoniecznie dosłownymi nazwami kolumn.
-  demographic:
-    - age
-    - education
-    - marital_status
-    - race_ethnicity
-    - household_income
-
-  reproductive_history:
-    - number_of_pregnancies
-    - number_of_live_births
-    - number_of_children
-    - ever_pregnant
-    - pregnancy_intention
-    - wants_more_children
-
-  healthcare_access:
-    - health_insurance
-    - usual_source_of_care
-    - family_planning_visit
-    - doctor_visit_last_12_months
-
-  health_related:
-    - self_rated_health
-    - bmi
-    - smoking_status
-    - infertility_history
-    - breastfeeding_status
-
-  relationship_and_sexual_activity:
-    - current_relationship_status
-    - sexually_active
-    - number_of_partners_category
-
-  exclude_columns:
-    # Tu wpisz zmienne, które bezpośrednio zdradzają target.
-    # Przykład: konkretne flagi użycia tabletki, IUD, prezerwatywy itd.
-    - contraception_class
-    - current_method_raw
-    - uses_pill
-    - uses_iud
-    - uses_implant
-    - uses_condom
-    - uses_withdrawal
-    - uses_sterilization
+labels:
+  1: epileptic_seizure
+  2: tumor_area_eeg
+  3: healthy_area_eeg
+  4: eyes_closed
+  5: eyes_open
 
 model:
-  type: mlp
-
-  architecture:
-    hidden_dims:
-      - 256
-      - 128
-      - 64
-    activation: relu
-    dropout: 0.30
-    batch_norm: true
-
-  loss:
-    name: cross_entropy
-    use_class_weights: true
+  input_dim: 178
+  num_classes: 5
+  hidden_dims: [256, 128, 64]
+  dropout: 0.30
 
 training:
-  accelerator: auto
-  devices: auto
-  max_epochs: 100
+  max_epochs: 35
   batch_size: 128
   learning_rate: 0.001
   weight_decay: 0.0001
-  num_workers: 4
+  patience: 8
+  accelerator: cpu
 
-  early_stopping:
-    monitor: val_macro_f1
-    mode: max
-    patience: 10
-
-  checkpoint:
-    monitor: val_macro_f1
-    mode: max
-    save_top_k: 1
-
-hyperparameter_search:
+optuna:
   enabled: true
-  method: random_search
-  n_trials: 20
-
-  search_space:
-    learning_rate:
-      - 0.0001
-      - 0.0005
-      - 0.001
-      - 0.003
-
-    batch_size:
-      - 64
-      - 128
-      - 256
-
-    dropout:
-      - 0.10
-      - 0.20
-      - 0.30
-      - 0.50
-
-    hidden_dims:
-      - [128, 64]
-      - [256, 128, 64]
-      - [512, 256, 128]
-
-evaluation:
-  metrics:
-    - accuracy
-    - balanced_accuracy
-    - macro_f1
-    - weighted_f1
-    - macro_auroc_ovr
-    - nll
-    - brier_score
-    - ece
-
-  confusion_matrix:
-    normalize: true
-
-calibration:
-  enabled: true
-  method: temperature_scaling
-  calibration_split: validation
-
-uncertainty:
-  measures:
-    - max_probability
-    - entropy
-    - margin_top1_top2
-
-  selection:
-    n_most_confident: 20
-    n_most_uncertain: 20
-    use_calibrated_probabilities: true
+  n_trials: 5
+  timeout_seconds: 900
 
 xai:
-  permutation_importance:
-    enabled: true
-    scoring: macro_f1
-    n_repeats: 10
-    random_state: 42
-    compute_on:
-      - train
-      - test
-
-  lime:
-    enabled: true
-    mode: classification
-    num_features: 15
-    num_samples: 5000
-
-    global_explanations:
-      n_instances: 500
-      aggregate_by: mean_absolute_weight
-
-    local_explanations:
-      n_confident_cases: 5
-      n_uncertain_cases: 5
-      n_wrong_uncertain_cases: 5
-
-reporting:
-  save_predictions: true
-  save_plots: true
-  save_lime_html: true
-  save_config_copy: true
+  permutation_repeats: 3
+  lime_global_instances: 120
+  lime_local_cases_per_group: 4
+  lime_num_features: 12
+  lime_num_samples: 3000
 
