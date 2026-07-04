@@ -8,7 +8,7 @@ and LIME.
 
 The complete workflow is implemented in
 `EEG_project_presentation.ipynb`, with generated data splits, figures, metrics,
-model checkpoints, and reports stored in the repository.
+model checkpoints, and explanation artifacts stored in the repository.
 
 ## Task Description
 
@@ -103,11 +103,6 @@ that satisfies the multiclass requirement.
 |   |-- metrics/                        # Test metrics and classification report
 |   |-- models/                         # Model checkpoints and calibration artifacts
 |   `-- tables/                         # Intermediate and final analytical tables
-`-- reports/
-    |-- final_report.md                 # Written project report
-    |-- final_report.pdf                # PDF version of the report
-    |-- notebook_description.md         # Notebook walkthrough
-    `-- README.md                       # Reserved report index
 ```
 
 ## Methodology
@@ -303,8 +298,6 @@ from patients with tumors.
 | `outputs/tables/pfi_train.csv` | Training-set permutation feature importance |
 | `outputs/tables/pfi_test.csv` | Test-set permutation feature importance |
 | `outputs/tables/lime_global.csv` | Aggregated global LIME ranking |
-| `reports/final_report.md` | Final written report |
-| `reports/final_report.pdf` | Final report in PDF format |
 
 ## Reproducibility
 
