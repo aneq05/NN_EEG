@@ -1,24 +1,18 @@
-numpy
-pandas
-scipy
-pyyaml
-joblib
-tqdm
+numpy>=1.24
+pandas>=1.5
+scipy>=1.8
+matplotlib>=3.6
+seaborn>=0.12
+scikit-learn>=1.1
+optuna>=3.0
+torch>=2.0
+lightning>=2.0
+lime>=0.2.0.1
+ipython>=8.0
+jupyterlab>=4.0
 
-scikit-learn
-torch
-torchmetrics
-lightning
-optuna
-lime
-kagglehub
+# Optional but helpful for plotting and saving images in notebooks
+Pillow>=9.0
 
-matplotlib
-seaborn
-tabulate
-rich
-
-jupyter
-ipykernel
-notebook
-
+# Pin small additions used in the notebook
+typing_extensions>=4.0

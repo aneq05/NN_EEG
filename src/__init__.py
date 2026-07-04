@@ -1,2 +1,0 @@
-"""EEG multiclass classification project."""
-
