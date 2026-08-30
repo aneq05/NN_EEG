@@ -1,314 +1,122 @@
-# Opis danych
+# Data Documentation
 
-Ten folder zawiera dane wykorzystane w projekcie klasyfikacji wieloklasowej
-stanow EEG.
+This directory contains the data used by the EEG multiclass classification
+workflow.
 
-## 1. Zrodlo danych
+## Source
 
-Uzyty zbior danych to:
+The project uses the public Kaggle dataset:
 
 ```text
 Epileptic Seizure Recognition
-```
-
-Zbior jest dostepny publicznie na Kaggle:
-
-```text
 https://www.kaggle.com/datasets/harunshimanto/epileptic-seizure-recognition
 ```
 
-W projekcie dane sa pobierane automatycznie przez `kagglehub`, jezeli plik
-`data/raw/data.csv` nie istnieje.
-
-Uwaga: polecenie laboratoryjne wskazuje OpenML, ale dostepny na OpenML zbior EEG
-jest binarny, a zadanie wymaga klasyfikacji wieloklasowej. Dlatego wybrano ten
-publiczny, piecioklasowy zbior EEG.
-
-## 2. Dane surowe
-
-Surowe dane znajduja sie w:
+The pipeline expects the raw CSV at:
 
 ```text
 data/raw/data.csv
 ```
 
-Plik surowy ma:
+If the file is missing, `src.data.ensure_raw_data` can download it with
+`kagglehub`. The dependency is included in `requirements.txt`.
 
-```text
-11500 wierszy
-180 kolumn
-```
+## Dataset Choice
 
-Kolumny:
+The dataset contains five balanced EEG classes, which makes it suitable for a
+multiclass classification project rather than a binary seizure vs. non-seizure
+setup.
 
-| Kolumna | Znaczenie |
-|---|---|
-| `Unnamed` | identyfikator probki, nie jest cecha modelowa |
-| `X1`-`X178` | kolejne punkty czasowe sygnalu EEG |
-| `y` | oryginalna klasa probki |
-
-Najwazniejsze jest to, ze kolumny `X1`, `X2`, ..., `X178` nie sa opisowymi
-cechami klinicznymi. Sa to kolejne wartosci amplitudy sygnalu EEG w krotkim
-fragmencie czasowym.
-
-Jeden wiersz mozna interpretowac tak:
-
-```text
-jeden fragment EEG -> 178 kolejnych wartosci sygnalu -> jedna klasa stanu EEG
-```
-
-Czyli model nie dostaje np. wieku pacjenta, BMI albo nazwy pasma fal mozgowych.
-Model dostaje surowy ksztalt sygnalu:
-
-```text
-[X1, X2, X3, ..., X178]
-```
-
-## 3. Klasy
-
-Zmienna docelowa w danych surowych to:
-
-```text
-y
-```
-
-Ma piec klas:
-
-| Klasa `y` | Znaczenie |
-|---:|---|
-| 1 | aktywnosc napadowa, epileptic seizure |
-| 2 | zapis EEG z obszaru guza |
-| 3 | zapis EEG ze zdrowego obszaru mozgu pacjenta z guzem |
-| 4 | oczy zamkniete |
-| 5 | oczy otwarte |
-
-Rozklad klas w surowym zbiorze:
-
-| Klasa | Liczba probek |
-|---:|---:|
-| 1 | 2300 |
-| 2 | 2300 |
-| 3 | 2300 |
-| 4 | 2300 |
-| 5 | 2300 |
-
-Klasy sa idealnie zbalansowane. To jest korzystne, bo model nie jest od poczatku
-faworyzowany w strone jednej dominujacej klasy.
-
-## 4. Co jest brane do klasyfikacji
-
-Do klasyfikacji brane sa tylko kolumny:
-
-```text
-X1, X2, ..., X178
-```
-
-Nie jest brana kolumna:
-
-```text
-Unnamed
-```
-
-bo jest tylko identyfikatorem probki.
-
-Targetem jest kolumna:
-
-```text
-y
-```
-
-ale przed treningiem jest przekodowana do postaci wymaganej przez PyTorch:
-
-| Oryginalne `y` | Target modelowy |
-|---:|---:|
-| 1 | 0 |
-| 2 | 1 |
-| 3 | 2 |
-| 4 | 3 |
-| 5 | 4 |
-
-Powod:
-
-```text
-CrossEntropyLoss w PyTorch oczekuje etykiet klas od 0 do liczba_klas - 1.
-```
-
-## 5. Data cleaning
-
-Cleaning wykonywany jest w pliku:
-
-```text
-src/preprocessing.py
-```
-
-Wykonane kroki:
-
-1. Wczytanie `data/raw/data.csv`.
-2. Usuniecie kolumny `Unnamed`.
-3. Usuniecie ewentualnych kolumn zaczynajacych sie od `Unnamed`.
-4. Sprawdzenie brakow danych.
-5. Sprawdzenie duplikatow.
-6. Utworzenie kolumny `target = y - 1`.
-
-Wynik kontroli danych:
-
-| Element | Wynik |
+| Property | Value |
 |---|---:|
-| liczba wierszy | 11500 |
-| liczba cech modelowych | 178 |
-| brakujace wartosci | 0 |
-| duplikaty | 0 |
+| Samples | 11,500 |
+| Signal features | 178 |
+| Target classes | 5 |
+| Samples per class | 2,300 |
+| Missing values | 0 |
+| Duplicates | 0 |
 
-Nie trzeba bylo usuwac wierszy z brakami danych, bo ich nie bylo.
+## Raw Schema
 
-## 6. Obsluga wartosci odstajacych
+The raw file has 180 columns:
 
-Poniewaz dane EEG moga miec duze amplitudy, w pipeline zastosowano lagodne
-przyciecie ekstremalnych wartosci.
-
-Uzyte kwantyle:
-
-```text
-0.001 i 0.999
-```
-
-Granice przyciecia sa liczone tylko na zbiorze treningowym. Potem te same
-granice sa stosowane do walidacji i testu.
-
-To ogranicza wplyw skrajnych amplitud i jednoczesnie zapobiega data leakage.
-
-Granice sa zapisane w:
-
-```text
-data/processed/outlier_clip_bounds.joblib
-```
-
-## 7. Podzial danych
-
-Dane sa dzielone stratyfikowanie po klasie, czyli kazdy split zachowuje podobny
-rozklad klas.
-
-Proporcje:
-
-| Split | Udzial |
-|---|---:|
-| train | 70% |
-| validation | 15% |
-| test | 15% |
-
-Pliki po podziale:
-
-```text
-data/processed/train.csv
-data/processed/val.csv
-data/processed/test.csv
-```
-
-Zbior treningowy sluzy do uczenia modelu.
-
-Zbior walidacyjny sluzy do:
-
-- wyboru hiperparametrow,
-- early stopping,
-- dopasowania kalibracji temperature scaling.
-
-Zbior testowy sluzy tylko do koncowej oceny modelu.
-
-## 8. Standaryzacja
-
-Cechy `X1`-`X178` sa standaryzowane przez:
-
-```text
-StandardScaler
-```
-
-Scaler jest dopasowany tylko na zbiorze treningowym:
-
-```text
-scaler.fit(X_train)
-```
-
-Nastepnie jest stosowany do:
-
-```text
-X_train
-X_val
-X_test
-```
-
-Zapisany scaler:
-
-```text
-data/processed/scaler.joblib
-```
-
-To jest wazne, poniewaz model neuronowy zwykle uczy sie stabilniej, gdy cechy
-maja podobna skale.
-
-## 9. Dane po przetworzeniu
-
-Po preprocessingu w `data/processed/` znajduja sie:
-
-| Plik | Znaczenie |
+| Column | Meaning |
 |---|---|
-| `train.csv` | dane treningowe po czyszczeniu, clippingu i standaryzacji |
-| `val.csv` | dane walidacyjne po czyszczeniu, clippingu i standaryzacji |
-| `test.csv` | dane testowe po czyszczeniu, clippingu i standaryzacji |
-| `scaler.joblib` | zapisany `StandardScaler` |
-| `outlier_clip_bounds.joblib` | zapisane granice przyciecia outlierow |
-| `feature_names.joblib` | lista cech `X1`-`X178` |
+| `Unnamed` | Technical sample identifier, removed before modeling |
+| `X1`-`X178` | Consecutive EEG signal amplitudes |
+| `y` | Original class label |
 
-W plikach `train.csv`, `val.csv` i `test.csv` znajduja sie:
+Each row represents one short EEG segment:
+
+```text
+one EEG segment -> 178 ordered signal values -> one EEG state label
+```
+
+The `X1`-`X178` columns are ordered time points, not independent clinical
+variables.
+
+## Classes
+
+| Raw `y` | Model target | Meaning |
+|---:|---:|---|
+| 1 | 0 | Epileptic seizure activity |
+| 2 | 1 | EEG from the tumor area |
+| 3 | 2 | EEG from a healthy brain area of a patient with a tumor |
+| 4 | 3 | Eyes closed |
+| 5 | 4 | Eyes open |
+
+PyTorch `CrossEntropyLoss` expects labels from `0` to `num_classes - 1`, so the
+pipeline maps the raw `1-5` labels to `0-4`.
+
+## Preprocessing
+
+Preprocessing is implemented in `src/data.py` and run by `python -m src.train`.
+
+Steps:
+
+1. Load `data/raw/data.csv`, downloading it with `kagglehub` if needed.
+2. Remove technical `Unnamed*` identifier columns.
+3. Remove duplicate rows.
+4. Create `target = y - 1`.
+5. Create stratified train, validation, and test splits with a `70/15/15` ratio.
+6. Compute outlier clipping bounds from the training set only.
+7. Apply the same clipping bounds to train, validation, and test sets.
+8. Fit `StandardScaler` on the training set only.
+9. Transform train, validation, and test features with the fitted scaler.
+
+Computing clipping bounds and scaling parameters only on the training split
+prevents train-test leakage.
+
+## Processed Files
+
+After running the pipeline, `data/processed/` contains:
+
+| File | Meaning |
+|---|---|
+| `train.csv` | Training split after clipping and scaling |
+| `val.csv` | Validation split after clipping and scaling |
+| `test.csv` | Test split after clipping and scaling |
+| `scaler.joblib` | Fitted training-set `StandardScaler` |
+| `outlier_clip_bounds.joblib` | Training-set clipping bounds |
+| `feature_names.joblib` | Ordered list of `X1`-`X178` features |
+
+The processed CSV files contain:
 
 ```text
 X1, X2, ..., X178, target
 ```
 
-Czyli po preprocessingu nie ma juz kolumny `Unnamed`, a target jest w wersji
-modelowej `0`-`4`.
+`data/raw/` and `data/processed/` are intentionally ignored by Git because the
+pipeline can regenerate them locally.
 
-## 10. Dlaczego klasyfikacja wieloklasowa
+## XAI Interpretation
 
-Nie robimy klasyfikacji binarnej typu:
+Permutation feature importance and LIME should be interpreted at the signal
+level. A high-importance `X` feature means that the corresponding time point or
+signal segment influenced the classifier for this dataset and model. It should
+not be interpreted as a named medical variable.
 
-```text
-seizure vs non-seizure
-```
-
-Zadanie laboratoryjne wymaga klasyfikacji wieloklasowej, dlatego zostawiono
-wszystkie piec klas.
-
-Model rozroznia:
-
-```text
-epileptic seizure
-tumor area EEG
-healthy area EEG
-eyes closed
-eyes open
-```
-
-Dzieki temu problem jest trudniejszy i bardziej zgodny z wymaganiami zadania.
-
-## 11. Jak interpretowac cechy XAI
-
-Poniewaz `X1`-`X178` sa punktami czasowymi sygnalu, interpretacja PFI i LIME
-dotyczy fragmentow sygnalu, a nie cech klinicznych.
-
-Poprawna interpretacja:
-
-```text
-Model uznal, ze dany punkt lub segment czasowy sygnalu EEG byl istotny dla decyzji.
-```
-
-Mniej poprawna interpretacja:
-
-```text
-X7 oznacza konkretna ceche medyczna.
-```
-
-Dlatego w projekcie oprocz waznosci pojedynczych punktow zastosowano tez
-segmenty czasowe:
+The project also aggregates point-level importance into temporal segments:
 
 ```text
 X1-X30
@@ -318,6 +126,3 @@ X91-X120
 X121-X150
 X151-X178
 ```
-
-To pozwala mowic, ktory fragment sygnalu EEG byl najwazniejszy dla klasyfikacji.
-
