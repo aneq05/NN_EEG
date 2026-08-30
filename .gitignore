@@ -4,6 +4,7 @@ data/processed/
 outputs/models/*
 !outputs/models/.gitkeep
 !outputs/models/best_params.json
+!outputs/models/hpo_config.json
 !outputs/models/run_config.json
 *.ckpt
 *.pt

@@ -19,7 +19,7 @@ The workflow covers:
 4. Final PyTorch Lightning model training with the selected configuration.
 5. Temperature scaling on the validation set.
 6. Test-set evaluation, uncertainty analysis, and calibrated predictions.
-7. Permutation feature importance and LIME explanations.
+7. Permutation feature importance and LIME explanations for explicit predicted classes.
 
 ## Dataset
 
@@ -106,7 +106,10 @@ The model in `src/model.py` is a multilayer perceptron:
 ```
 
 Training uses AdamW, `ReduceLROnPlateau`, early stopping on validation macro F1,
-and deterministic seeding.
+and deterministic seeding. Validation macro F1 is accumulated with
+`torchmetrics.MulticlassF1Score`, so the scheduler, checkpointing, early
+stopping, and Optuna objective use one epoch-level macro F1 value over the full
+validation split.
 
 ## Hyperparameter Optimization
 
@@ -120,16 +123,16 @@ outputs/tables/hyperparameter_search.csv
 Best validation macro F1 from HPO:
 
 ```text
-0.7368686199188232
+0.746493935585022
 ```
 
 Selected hyperparameters:
 
 ```json
 {
-  "dropout": 0.1,
-  "learning_rate": 0.0006437641798101149,
-  "weight_decay": 0.0000010229303659449552,
+  "dropout": 0.2,
+  "learning_rate": 0.0010672112706919764,
+  "weight_decay": 0.00010323015857001449,
   "hidden_dims": [512, 256, 128]
 }
 ```
@@ -138,6 +141,7 @@ The selected configuration is tracked in:
 
 ```text
 outputs/models/best_params.json
+outputs/models/hpo_config.json
 outputs/models/run_config.json
 ```
 
@@ -147,18 +151,18 @@ Final test metrics from `outputs/metrics/test_metrics.csv`:
 
 | Stage | Accuracy | Balanced Accuracy | Macro F1 | Weighted F1 | Macro OVR AUROC | NLL | Brier | ECE |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| Before calibration | 0.738 | 0.738 | 0.739 | 0.739 | 0.942 | 0.627 | 0.359 | 0.059 |
-| After calibration | 0.738 | 0.738 | 0.739 | 0.739 | 0.943 | 0.598 | 0.350 | 0.032 |
+| Before calibration | 0.725 | 0.725 | 0.728 | 0.728 | 0.941 | 0.630 | 0.361 | 0.054 |
+| After calibration | 0.725 | 0.725 | 0.728 | 0.728 | 0.941 | 0.605 | 0.355 | 0.027 |
 
 Class-level F1 scores from `outputs/metrics/classification_report.csv`:
 
 | Class | F1 score |
 |---|---:|
-| `epileptic_seizure` | 0.952 |
-| `tumor_area_eeg` | 0.607 |
-| `healthy_area_eeg` | 0.634 |
-| `eyes_closed` | 0.778 |
-| `eyes_open` | 0.724 |
+| `epileptic_seizure` | 0.949 |
+| `tumor_area_eeg` | 0.592 |
+| `healthy_area_eeg` | 0.611 |
+| `eyes_closed` | 0.779 |
+| `eyes_open` | 0.711 |
 
 The model performs best on epileptic seizure segments, which is consistent with
 EDA showing a more distinctive amplitude and energy profile for that class. The
@@ -182,12 +186,13 @@ with tumors.
 | `outputs/metrics/classification_report.csv` | Per-class precision, recall, and F1 |
 | `outputs/tables/hyperparameter_search.csv` | All 30 Optuna trials |
 | `outputs/models/best_params.json` | Selected Optuna configuration |
+| `outputs/models/hpo_config.json` | HPO cache key and objective definition |
 | `outputs/models/run_config.json` | Seed, HPO settings, batch size, temperature |
 | `outputs/figures/confusion_matrix.png` | Final confusion matrix |
 | `outputs/figures/reliability_diagram.png` | Calibration plot |
 | `outputs/tables/pfi_test.csv` | Test-set permutation feature importance |
-| `outputs/tables/lime_global.csv` | Aggregated global LIME ranking |
-| `outputs/lime/` | Local LIME explanations for selected test cases |
+| `outputs/tables/lime_global.csv` | Aggregated LIME ranking for predicted-class explanations |
+| `outputs/lime/` | Local LIME explanations with sample, predicted class, and true class context |
 
 Model weights, Lightning checkpoints, fitted scalers, and calibration joblib
 files are generated locally and intentionally ignored by Git. This keeps the

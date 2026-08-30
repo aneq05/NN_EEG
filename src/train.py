@@ -39,6 +39,8 @@ from src.xai import (
     segment_importance,
 )
 
+HPO_CACHE_VERSION = "epoch_multiclass_macro_f1_v2"
+
 ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "data"
 RAW_PATH = DATA_DIR / "raw" / "data.csv"
@@ -141,10 +143,43 @@ def trainer_for(
     )
 
 
+def hpo_cache_config(n_trials: int, max_epochs: int, seed: int) -> dict:
+    return {
+        "cache_version": HPO_CACHE_VERSION,
+        "seed": seed,
+        "n_trials": n_trials,
+        "max_epochs": max_epochs,
+        "search_space": {
+            "architectures": ARCHITECTURES,
+            "dropout": {"low": 0.1, "high": 0.5, "step": 0.1},
+            "learning_rate": {"low": 1e-4, "high": 3e-3, "log": True},
+            "weight_decay": {"low": 1e-6, "high": 1e-3, "log": True},
+        },
+        "objective": "best epoch-level validation macro F1 from EarlyStopping.best_score",
+    }
+
+
+def hpo_cache_is_valid(config_path: Path, hyperparams_path: Path, expected_config: dict) -> bool:
+    if not config_path.exists() or not hyperparams_path.exists():
+        return False
+    try:
+        cached_config = json.loads(config_path.read_text(encoding="utf-8"))
+        trials = pd.read_csv(hyperparams_path)
+    except (json.JSONDecodeError, OSError, pd.errors.EmptyDataError):
+        return False
+    return cached_config == expected_config and len(trials) == expected_config["n_trials"]
+
+
 def run_hpo(data_module: EEGDataModule, n_trials: int, max_epochs: int, seed: int, force: bool) -> dict:
     best_params_path = MODELS_DIR / "best_params.json"
+    hpo_config_path = MODELS_DIR / "hpo_config.json"
     hyperparams_path = TABLES_DIR / "hyperparameter_search.csv"
-    if best_params_path.exists() and hyperparams_path.exists() and not force:
+    expected_config = hpo_cache_config(n_trials=n_trials, max_epochs=max_epochs, seed=seed)
+    if (
+        best_params_path.exists()
+        and hpo_cache_is_valid(hpo_config_path, hyperparams_path, expected_config)
+        and not force
+    ):
         return json.loads(best_params_path.read_text(encoding="utf-8"))
 
     def objective(trial: optuna.Trial) -> float:
@@ -159,7 +194,7 @@ def run_hpo(data_module: EEGDataModule, n_trials: int, max_epochs: int, seed: in
         early = EarlyStopping(monitor="val_macro_f1", mode="max", patience=5)
         trainer = trainer_for(max_epochs=max_epochs, callbacks=[early], checkpointing=False, quiet=True)
         trainer.fit(model, datamodule=data_module)
-        return float(trainer.callback_metrics["val_macro_f1"].detach().cpu().item())
+        return float(early.best_score.detach().cpu().item())
 
     sampler = optuna.samplers.TPESampler(seed=seed)
     study = optuna.create_study(direction="maximize", sampler=sampler)
@@ -169,6 +204,7 @@ def run_hpo(data_module: EEGDataModule, n_trials: int, max_epochs: int, seed: in
     best_params = study.best_params
     best_params["hidden_dims"] = ARCHITECTURES[best_params.pop("architecture")]
     best_params_path.write_text(json.dumps(best_params, indent=2), encoding="utf-8")
+    hpo_config_path.write_text(json.dumps(expected_config, indent=2), encoding="utf-8")
     return best_params
 
 
@@ -236,7 +272,7 @@ def run_xai(model, calibrator: TemperatureScaler, splits, run_lime: bool, seed: 
         )
         lime_global.to_csv(TABLES_DIR / "lime_global.csv", index=False)
         save_lime_plot(lime_global, FIGURES_DIR)
-        save_local_lime(explainer, predict_proba_fn, splits.x_test, cases, LIME_DIR)
+        save_local_lime(explainer, predict_proba_fn, splits.x_test, splits.y_test, cases, LIME_DIR)
 
 
 def main() -> None:
@@ -290,6 +326,7 @@ def main() -> None:
         "n_trials": args.n_trials,
         "max_epochs": args.max_epochs,
         "batch_size": args.batch_size,
+        "hpo_cache_version": HPO_CACHE_VERSION,
         "best_params": best_params,
         "temperature": calibrator.temperature,
         "uncertainty_case_counts": {name: len(group) for name, group in cases.items()},

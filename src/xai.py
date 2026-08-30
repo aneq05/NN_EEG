@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections import defaultdict
 from pathlib import Path
 
@@ -14,6 +15,8 @@ from matplotlib import pyplot as plt
 from sklearn.metrics import f1_score
 
 from src.evaluation import CLASS_NAMES
+
+FEATURE_PATTERN = re.compile(r"\bX\d+\b")
 
 
 def permutation_importance(
@@ -76,10 +79,16 @@ def build_lime_explainer(x_train: np.ndarray, feature_names: list[str], seed: in
 
 
 def map_lime_feature(text: str, feature_names: list[str]) -> str:
-    for name in feature_names:
-        if name in text:
-            return name
+    feature_set = set(feature_names)
+    match = FEATURE_PATTERN.search(text)
+    if match and match.group(0) in feature_set:
+        return match.group(0)
     return text
+
+
+def predicted_class_for_instance(predict_proba_fn, x_instance: np.ndarray) -> int:
+    probs = predict_proba_fn(x_instance.reshape(1, -1))
+    return int(probs.argmax(axis=1)[0])
 
 
 def global_lime(
@@ -95,12 +104,26 @@ def global_lime(
     rng = np.random.default_rng(seed)
     indices = rng.choice(len(x), size=min(n_instances, len(x)), replace=False)
     for idx in indices:
-        exp = explainer.explain_instance(x[idx], predict_proba_fn, num_features=12, num_samples=3000)
-        for feat, weight in exp.as_list():
+        predicted_class = predicted_class_for_instance(predict_proba_fn, x[idx])
+        exp = explainer.explain_instance(
+            x[idx],
+            predict_proba_fn,
+            labels=(predicted_class,),
+            num_features=12,
+            num_samples=3000,
+        )
+        for feat, weight in exp.as_list(label=predicted_class):
             clean = map_lime_feature(feat, feature_names)
             totals[clean] += abs(weight)
             counts[clean] += 1
-    rows = [{"feature": key, "mean_abs_lime_weight": totals[key] / counts[key]} for key in totals]
+    rows = [
+        {
+            "feature": key,
+            "mean_abs_lime_weight": totals[key] / counts[key],
+            "explanation_count": counts[key],
+        }
+        for key in totals
+    ]
     return pd.DataFrame(rows).sort_values("mean_abs_lime_weight", ascending=False)
 
 
@@ -119,25 +142,38 @@ def save_local_lime(
     explainer: LimeTabularExplainer,
     predict_proba_fn,
     x_test: np.ndarray,
+    y_test: np.ndarray,
     cases: dict[str, pd.DataFrame],
     lime_dir: Path,
 ) -> None:
     lime_dir = Path(lime_dir)
     lime_dir.mkdir(parents=True, exist_ok=True)
+    for stale_html in lime_dir.glob("*.html"):
+        stale_html.unlink()
+
     summaries = []
     for group_name, group in cases.items():
         for _, row in group.head(4).iterrows():
             idx = int(row["index"])
-            exp = explainer.explain_instance(x_test[idx], predict_proba_fn, num_features=12, num_samples=3000)
+            predicted_class = predicted_class_for_instance(predict_proba_fn, x_test[idx])
+            exp = explainer.explain_instance(
+                x_test[idx],
+                predict_proba_fn,
+                labels=(predicted_class,),
+                num_features=12,
+                num_samples=3000,
+            )
             html_path = lime_dir / f"{group_name}_{idx}.html"
             exp.save_to_file(str(html_path))
-            for feat, weight in exp.as_list():
+            for feat, weight in exp.as_list(label=predicted_class):
                 summaries.append(
                     {
                         "group": group_name,
-                        "test_index": idx,
+                        "sample_index": idx,
+                        "predicted_class": predicted_class,
+                        "true_class": int(y_test[idx]),
                         "feature": map_lime_feature(feat, explainer.feature_names),
-                        "weight": weight,
+                        "lime_weight": weight,
                     }
                 )
     pd.DataFrame(summaries).to_csv(lime_dir / "local_lime_summary.csv", index=False)

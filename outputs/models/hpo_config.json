@@ -1,0 +1,40 @@
+{
+  "cache_version": "epoch_multiclass_macro_f1_v2",
+  "seed": 42,
+  "n_trials": 30,
+  "max_epochs": 35,
+  "search_space": {
+    "architectures": {
+      "small": [
+        128,
+        64
+      ],
+      "medium": [
+        256,
+        128,
+        64
+      ],
+      "large": [
+        512,
+        256,
+        128
+      ]
+    },
+    "dropout": {
+      "low": 0.1,
+      "high": 0.5,
+      "step": 0.1
+    },
+    "learning_rate": {
+      "low": 0.0001,
+      "high": 0.003,
+      "log": true
+    },
+    "weight_decay": {
+      "low": 1e-06,
+      "high": 0.001,
+      "log": true
+    }
+  },
+  "objective": "best epoch-level validation macro F1 from EarlyStopping.best_score"
+}

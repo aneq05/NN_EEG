@@ -1,7 +1,7 @@
 {
-  "dropout": 0.1,
-  "learning_rate": 0.0006437641798101149,
-  "weight_decay": 1.0229303659449552e-06,
+  "dropout": 0.2,
+  "learning_rate": 0.0010672112706919764,
+  "weight_decay": 0.00010323015857001449,
   "hidden_dims": [
     512,
     256,

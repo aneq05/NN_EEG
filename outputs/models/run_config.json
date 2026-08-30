@@ -3,17 +3,18 @@
   "n_trials": 30,
   "max_epochs": 35,
   "batch_size": 128,
+  "hpo_cache_version": "epoch_multiclass_macro_f1_v2",
   "best_params": {
-    "dropout": 0.1,
-    "learning_rate": 0.0006437641798101149,
-    "weight_decay": 1.0229303659449552e-06,
+    "dropout": 0.2,
+    "learning_rate": 0.0010672112706919764,
+    "weight_decay": 0.00010323015857001449,
     "hidden_dims": [
       512,
       256,
       128
     ]
   },
-  "temperature": 1.4242210034505367,
+  "temperature": 1.3842036606246895,
   "uncertainty_case_counts": {
     "most_confident_correct": 20,
     "most_uncertain_correct": 20,

@@ -6,9 +6,9 @@ from typing import Any
 import lightning as L
 import numpy as np
 import torch
-from sklearn.metrics import f1_score
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
+from torchmetrics.classification import MulticlassF1Score
 
 ARCHITECTURES = {
     "small": [128, 64],
@@ -78,6 +78,7 @@ class EEGMLP(L.LightningModule):
         self.loss_fn = nn.CrossEntropyLoss()
         self.learning_rate = cfg.learning_rate
         self.weight_decay = cfg.weight_decay
+        self.val_f1 = MulticlassF1Score(num_classes=cfg.num_classes, average="macro")
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.net(x)
@@ -97,11 +98,11 @@ class EEGMLP(L.LightningModule):
         logits = self(x)
         loss = self.loss_fn(logits, y)
         preds = logits.argmax(dim=1)
-        macro_f1 = f1_score(y.detach().cpu().numpy(), preds.detach().cpu().numpy(), average="macro")
         acc = (preds == y).float().mean()
+        self.val_f1.update(preds, y)
         self.log("val_loss", loss, prog_bar=True)
         self.log("val_acc", acc, prog_bar=True)
-        self.log("val_macro_f1", macro_f1, prog_bar=True)
+        self.log("val_macro_f1", self.val_f1, on_step=False, on_epoch=True, prog_bar=True)
 
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
@@ -120,4 +121,3 @@ def make_model(overrides: dict[str, Any] | None = None) -> EEGMLP:
         weight_decay=overrides.get("weight_decay", 0.0001),
     )
     return EEGMLP(cfg)
-
