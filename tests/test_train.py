@@ -1,8 +1,9 @@
 import json
 
 import pandas as pd
+import torch
 
-from src.train import hpo_cache_config, hpo_cache_is_valid
+from src.train import best_validation_score, hpo_cache_config, hpo_cache_is_valid
 
 
 def test_hpo_cache_requires_matching_experiment_config(tmp_path):
@@ -15,3 +16,10 @@ def test_hpo_cache_requires_matching_experiment_config(tmp_path):
 
     assert hpo_cache_is_valid(config_path, trials_path, expected)
     assert not hpo_cache_is_valid(config_path, trials_path, hpo_cache_config(n_trials=3, max_epochs=3, seed=42))
+
+
+def test_hpo_uses_best_validation_score():
+    class FakeEarlyStopping:
+        best_score = torch.tensor(0.765)
+
+    assert best_validation_score(FakeEarlyStopping()) == torch.tensor(0.765).item()

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from collections import defaultdict
+from collections.abc import Callable
 from pathlib import Path
 
 import matplotlib
@@ -20,7 +21,7 @@ FEATURE_PATTERN = re.compile(r"\bX\d+\b")
 
 
 def permutation_importance(
-    predict_fn,
+    predict_fn: Callable[[np.ndarray], np.ndarray],
     x: np.ndarray,
     y: np.ndarray,
     feature_names: list[str],
@@ -86,14 +87,14 @@ def map_lime_feature(text: str, feature_names: list[str]) -> str:
     return text
 
 
-def predicted_class_for_instance(predict_proba_fn, x_instance: np.ndarray) -> int:
+def predicted_class_for_instance(predict_proba_fn: Callable[[np.ndarray], np.ndarray], x_instance: np.ndarray) -> int:
     probs = predict_proba_fn(x_instance.reshape(1, -1))
     return int(probs.argmax(axis=1)[0])
 
 
 def global_lime(
     explainer: LimeTabularExplainer,
-    predict_proba_fn,
+    predict_proba_fn: Callable[[np.ndarray], np.ndarray],
     x: np.ndarray,
     feature_names: list[str],
     seed: int,
@@ -140,7 +141,7 @@ def save_lime_plot(df: pd.DataFrame, figures_dir: Path) -> None:
 
 def save_local_lime(
     explainer: LimeTabularExplainer,
-    predict_proba_fn,
+    predict_proba_fn: Callable[[np.ndarray], np.ndarray],
     x_test: np.ndarray,
     y_test: np.ndarray,
     cases: dict[str, pd.DataFrame],

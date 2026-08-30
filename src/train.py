@@ -10,16 +10,18 @@ import matplotlib
 
 matplotlib.use("Agg")
 
+import numpy as np
 import optuna
 import pandas as pd
 import seaborn as sns
 import torch
-from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
+from lightning.pytorch.callbacks import Callback, EarlyStopping, ModelCheckpoint
 from matplotlib import pyplot as plt
 from sklearn.decomposition import PCA
 
 from src.calibration import TemperatureScaler, softmax
 from src.data import (
+    SplitData,
     clean_dataframe,
     feature_columns,
     load_raw_data,
@@ -58,7 +60,7 @@ def prepare_dirs() -> None:
         path.mkdir(parents=True, exist_ok=True)
 
 
-def save_eda_figures(raw: pd.DataFrame, cleaned: pd.DataFrame, splits) -> None:
+def save_eda_figures(raw: pd.DataFrame, cleaned: pd.DataFrame, splits: SplitData) -> None:
     features = feature_columns(cleaned)
     order = sorted(cleaned["y"].unique())
 
@@ -127,7 +129,7 @@ def save_eda_figures(raw: pd.DataFrame, cleaned: pd.DataFrame, splits) -> None:
 
 def trainer_for(
     max_epochs: int,
-    callbacks: list | None = None,
+    callbacks: list[Callback] | None = None,
     checkpointing: bool = False,
     quiet: bool = False,
 ) -> L.Trainer:
@@ -170,6 +172,10 @@ def hpo_cache_is_valid(config_path: Path, hyperparams_path: Path, expected_confi
     return cached_config == expected_config and len(trials) == expected_config["n_trials"]
 
 
+def best_validation_score(early_stopping: EarlyStopping) -> float:
+    return float(early_stopping.best_score.detach().cpu().item())
+
+
 def run_hpo(data_module: EEGDataModule, n_trials: int, max_epochs: int, seed: int, force: bool) -> dict:
     best_params_path = MODELS_DIR / "best_params.json"
     hpo_config_path = MODELS_DIR / "hpo_config.json"
@@ -194,7 +200,7 @@ def run_hpo(data_module: EEGDataModule, n_trials: int, max_epochs: int, seed: in
         early = EarlyStopping(monitor="val_macro_f1", mode="max", patience=5)
         trainer = trainer_for(max_epochs=max_epochs, callbacks=[early], checkpointing=False, quiet=True)
         trainer.fit(model, datamodule=data_module)
-        return float(early.best_score.detach().cpu().item())
+        return best_validation_score(early)
 
     sampler = optuna.samplers.TPESampler(seed=seed)
     study = optuna.create_study(direction="maximize", sampler=sampler)
@@ -227,12 +233,18 @@ def train_final_model(data_module: EEGDataModule, best_params: dict, max_epochs:
     return model
 
 
-def run_xai(model, calibrator: TemperatureScaler, splits, run_lime: bool, seed: int) -> None:
-    def predict_fn(x):
+def run_xai(
+    model: torch.nn.Module,
+    calibrator: TemperatureScaler,
+    splits: SplitData,
+    run_lime: bool,
+    seed: int,
+) -> None:
+    def predict_fn(x: np.ndarray) -> np.ndarray:
         logits = predict_logits(model, x.astype("float32"))
         return softmax(calibrator.transform_logits(logits)).argmax(axis=1)
 
-    def predict_proba_fn(x):
+    def predict_proba_fn(x: np.ndarray) -> np.ndarray:
         logits = predict_logits(model, x.astype("float32"))
         return softmax(calibrator.transform_logits(logits))
 

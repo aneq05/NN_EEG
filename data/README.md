@@ -55,6 +55,13 @@ one EEG segment -> 178 ordered signal values -> one EEG state label
 The `X1`-`X178` columns are ordered time points, not independent clinical
 variables.
 
+Before preprocessing, `src.data.validate_raw_schema` verifies that:
+
+- feature columns are exactly `X1` through `X178` in order,
+- all EEG feature columns are numeric,
+- `X1`-`X178` and `y` contain no missing values,
+- the target column `y` contains exactly labels `1, 2, 3, 4, 5`.
+
 ## Classes
 
 | Raw `y` | Model target | Meaning |
@@ -75,14 +82,15 @@ Preprocessing is implemented in `src/data.py` and run by `python -m src.train`.
 Steps:
 
 1. Load `data/raw/data.csv`, downloading it with `kagglehub` if needed.
-2. Remove technical `Unnamed*` identifier columns.
-3. Remove duplicate rows.
-4. Create `target = y - 1`.
-5. Create stratified train, validation, and test splits with a `70/15/15` ratio.
-6. Compute outlier clipping bounds from the training set only.
-7. Apply the same clipping bounds to train, validation, and test sets.
-8. Fit `StandardScaler` on the training set only.
-9. Transform train, validation, and test features with the fitted scaler.
+2. Validate the raw schema.
+3. Remove technical `Unnamed*` identifier columns.
+4. Remove duplicate rows.
+5. Create `target = y - 1`.
+6. Create stratified train, validation, and test splits with a `70/15/15` ratio.
+7. Compute outlier clipping bounds from the training set only.
+8. Apply the same clipping bounds to train, validation, and test sets.
+9. Fit `StandardScaler` on the training set only.
+10. Transform train, validation, and test features with the fitted scaler.
 
 Computing clipping bounds and scaling parameters only on the training split
 prevents train-test leakage.

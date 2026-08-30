@@ -87,6 +87,9 @@ variables.
 
 Preprocessing in `src/data.py`:
 
+- validates the raw schema before modeling:
+  `X1` through `X178` in order, numeric feature values, no missing values, and
+  target labels exactly in `{1, 2, 3, 4, 5}`,
 - removes technical `Unnamed*` identifier columns,
 - removes duplicate rows,
 - maps labels from `1-5` to `0-4`,
@@ -113,7 +116,9 @@ validation split.
 
 ## Hyperparameter Optimization
 
-The final run uses a fixed seed (`42`) and 30 Optuna trials. All trials are
+The final run uses a fixed seed (`42`) and 30 Optuna trials. The HPO cache is
+used only when `outputs/models/hpo_config.json` matches the requested seed,
+trial count, epoch count, search space, and objective version. All trials are
 stored in:
 
 ```text

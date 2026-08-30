@@ -11,6 +11,8 @@ from sklearn.preprocessing import StandardScaler
 
 RAW_DATASET = "harunshimanto/epileptic-seizure-recognition"
 DEFAULT_SEED = 42
+EXPECTED_FEATURES = [f"X{i}" for i in range(1, 179)]
+EXPECTED_TARGET_VALUES = {1, 2, 3, 4, 5}
 
 
 @dataclass(frozen=True)
@@ -55,7 +57,35 @@ def load_raw_data(raw_path: Path) -> pd.DataFrame:
     return pd.read_csv(ensure_raw_data(raw_path))
 
 
-def clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+def validate_raw_schema(df: pd.DataFrame) -> None:
+    if "y" not in df.columns:
+        raise ValueError("Raw dataframe must contain target column 'y'.")
+
+    features_in_data = [column for column in df.columns if column.upper().startswith("X")]
+    if features_in_data != EXPECTED_FEATURES:
+        missing = [feature for feature in EXPECTED_FEATURES if feature not in features_in_data]
+        unexpected = [feature for feature in features_in_data if feature not in EXPECTED_FEATURES]
+        raise ValueError(
+            "Raw dataframe must contain exactly ordered EEG features X1 through X178. "
+            f"Missing: {missing[:5]}, unexpected: {unexpected[:5]}."
+        )
+
+    non_numeric = [column for column in EXPECTED_FEATURES if not pd.api.types.is_numeric_dtype(df[column])]
+    if non_numeric:
+        raise ValueError(f"EEG feature columns must be numeric. Non-numeric columns: {non_numeric[:5]}.")
+
+    if df[EXPECTED_FEATURES + ["y"]].isna().any().any():
+        raise ValueError("Raw dataframe contains missing values in EEG features or target.")
+
+    target_values = set(df["y"].unique())
+    if target_values != EXPECTED_TARGET_VALUES:
+        raise ValueError(f"Target column 'y' must contain exactly labels 1-5. Found: {sorted(target_values)}.")
+
+
+def clean_dataframe(df: pd.DataFrame, strict_schema: bool = True) -> pd.DataFrame:
+    if strict_schema:
+        validate_raw_schema(df)
+
     cleaned = df.copy()
     unnamed_columns = [column for column in cleaned.columns if column.lower().startswith("unnamed")]
     cleaned = cleaned.drop(columns=unnamed_columns, errors="ignore")
@@ -64,12 +94,15 @@ def clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     return cleaned
 
 
-def feature_columns(df: pd.DataFrame) -> list[str]:
-    return [column for column in df.columns if column.upper().startswith("X")]
+def feature_columns(df: pd.DataFrame, strict_schema: bool = True) -> list[str]:
+    features = [column for column in df.columns if column.upper().startswith("X")]
+    if strict_schema and features != EXPECTED_FEATURES:
+        raise ValueError("Feature columns must be exactly ordered as X1 through X178.")
+    return features
 
 
-def prepare_model_inputs(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series, list[str]]:
-    features = feature_columns(df)
+def prepare_model_inputs(df: pd.DataFrame, strict_schema: bool = True) -> tuple[pd.DataFrame, pd.Series, list[str]]:
+    features = feature_columns(df, strict_schema=strict_schema)
     x = df[features].astype("float32")
     y = df["target"].astype("int64")
     return x, y, features
@@ -147,8 +180,9 @@ def split_and_scale(
     val_size: float = 0.15,
     random_state: int = DEFAULT_SEED,
     clip_quantiles: tuple[float, float] = (0.001, 0.999),
+    strict_schema: bool = True,
 ) -> SplitData:
-    x, y, features = prepare_model_inputs(df)
+    x, y, features = prepare_model_inputs(df, strict_schema=strict_schema)
     x_train, x_val, x_test, y_train, y_val, y_test = split_train_val_test(
         x,
         y,
@@ -202,4 +236,3 @@ def save_data_summary(cleaned: pd.DataFrame, feature_names: list[str], tables_di
         tables_dir / "class_distribution.csv", index=False
     )
     cleaned[feature_names].describe().T.to_csv(tables_dir / "feature_describe.csv")
-

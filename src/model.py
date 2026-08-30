@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
 
 import lightning as L
 import numpy as np
@@ -9,6 +8,8 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 from torchmetrics.classification import MulticlassF1Score
+
+from src.data import SplitData
 
 ARCHITECTURES = {
     "small": [128, 64],
@@ -33,7 +34,7 @@ def seed_everything(seed: int) -> None:
 
 
 class EEGDataModule(L.LightningDataModule):
-    def __init__(self, splits: Any, batch_size: int = 128):
+    def __init__(self, splits: SplitData, batch_size: int = 128) -> None:
         super().__init__()
         self.splits = splits
         self.batch_size = batch_size
@@ -110,7 +111,7 @@ class EEGMLP(L.LightningModule):
         return {"optimizer": optimizer, "lr_scheduler": {"scheduler": scheduler, "monitor": "val_macro_f1"}}
 
 
-def make_model(overrides: dict[str, Any] | None = None) -> EEGMLP:
+def make_model(overrides: dict | None = None) -> EEGMLP:
     overrides = overrides or {}
     cfg = ModelConfig(
         input_dim=overrides.get("input_dim", 178),
