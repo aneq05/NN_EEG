@@ -118,7 +118,8 @@ validation split.
 
 The final run uses a fixed seed (`42`) and 30 Optuna trials. The HPO cache is
 used only when `outputs/models/hpo_config.json` matches the requested seed,
-trial count, epoch count, search space, and objective version. All trials are
+batch size, trial count, epoch count, dataset SHA-256, preprocessing config,
+search space, and objective version. All trials are
 stored in:
 
 ```text

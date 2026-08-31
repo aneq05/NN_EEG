@@ -11,6 +11,9 @@ from sklearn.preprocessing import StandardScaler
 
 RAW_DATASET = "harunshimanto/epileptic-seizure-recognition"
 DEFAULT_SEED = 42
+DEFAULT_TEST_SIZE = 0.15
+DEFAULT_VAL_SIZE = 0.15
+DEFAULT_CLIP_QUANTILES = (0.001, 0.999)
 EXPECTED_FEATURES = [f"X{i}" for i in range(1, 179)]
 EXPECTED_TARGET_VALUES = {1, 2, 3, 4, 5}
 
@@ -176,10 +179,10 @@ def scale_features(
 
 def split_and_scale(
     df: pd.DataFrame,
-    test_size: float = 0.15,
-    val_size: float = 0.15,
+    test_size: float = DEFAULT_TEST_SIZE,
+    val_size: float = DEFAULT_VAL_SIZE,
     random_state: int = DEFAULT_SEED,
-    clip_quantiles: tuple[float, float] = (0.001, 0.999),
+    clip_quantiles: tuple[float, float] = DEFAULT_CLIP_QUANTILES,
     strict_schema: bool = True,
 ) -> SplitData:
     x, y, features = prepare_model_inputs(df, strict_schema=strict_schema)

@@ -8,6 +8,7 @@ joblib>=1.2
 optuna>=3.0
 torch>=2.0
 lightning>=2.0
+torchmetrics>=1.0
 lime>=0.2.0.1
 kagglehub>=0.3.0
 ipython>=8.0

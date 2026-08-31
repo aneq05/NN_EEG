@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 
@@ -21,6 +22,9 @@ from sklearn.decomposition import PCA
 
 from src.calibration import TemperatureScaler, softmax
 from src.data import (
+    DEFAULT_CLIP_QUANTILES,
+    DEFAULT_TEST_SIZE,
+    DEFAULT_VAL_SIZE,
     SplitData,
     clean_dataframe,
     feature_columns,
@@ -145,12 +149,36 @@ def trainer_for(
     )
 
 
-def hpo_cache_config(n_trials: int, max_epochs: int, seed: int) -> dict:
+def file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as file:
+        for chunk in iter(lambda: file.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def hpo_cache_config(
+    n_trials: int,
+    max_epochs: int,
+    seed: int,
+    batch_size: int,
+    dataset_sha256: str,
+    test_size: float = DEFAULT_TEST_SIZE,
+    val_size: float = DEFAULT_VAL_SIZE,
+    clip_quantiles: tuple[float, float] = DEFAULT_CLIP_QUANTILES,
+) -> dict:
     return {
         "cache_version": HPO_CACHE_VERSION,
         "seed": seed,
         "n_trials": n_trials,
         "max_epochs": max_epochs,
+        "batch_size": batch_size,
+        "dataset_sha256": dataset_sha256,
+        "preprocessing": {
+            "split": {"train": 1.0 - test_size - val_size, "validation": val_size, "test": test_size},
+            "clip_quantiles": list(clip_quantiles),
+            "scaler": "StandardScaler fit on train split only",
+        },
         "search_space": {
             "architectures": ARCHITECTURES,
             "dropout": {"low": 0.1, "high": 0.5, "step": 0.1},
@@ -176,11 +204,25 @@ def best_validation_score(early_stopping: EarlyStopping) -> float:
     return float(early_stopping.best_score.detach().cpu().item())
 
 
-def run_hpo(data_module: EEGDataModule, n_trials: int, max_epochs: int, seed: int, force: bool) -> dict:
+def run_hpo(
+    data_module: EEGDataModule,
+    n_trials: int,
+    max_epochs: int,
+    seed: int,
+    batch_size: int,
+    dataset_sha256: str,
+    force: bool,
+) -> dict:
     best_params_path = MODELS_DIR / "best_params.json"
     hpo_config_path = MODELS_DIR / "hpo_config.json"
     hyperparams_path = TABLES_DIR / "hyperparameter_search.csv"
-    expected_config = hpo_cache_config(n_trials=n_trials, max_epochs=max_epochs, seed=seed)
+    expected_config = hpo_cache_config(
+        n_trials=n_trials,
+        max_epochs=max_epochs,
+        seed=seed,
+        batch_size=batch_size,
+        dataset_sha256=dataset_sha256,
+    )
     if (
         best_params_path.exists()
         and hpo_cache_is_valid(hpo_config_path, hyperparams_path, expected_config)
@@ -300,6 +342,7 @@ def main() -> None:
     prepare_dirs()
     seed_everything(args.seed)
     raw = load_raw_data(RAW_PATH)
+    dataset_sha256 = file_sha256(RAW_PATH)
     cleaned = clean_dataframe(raw)
     splits = split_and_scale(cleaned, random_state=args.seed)
     save_processed_splits(splits, PROCESSED_DIR)
@@ -312,6 +355,8 @@ def main() -> None:
         n_trials=args.n_trials,
         max_epochs=args.max_epochs,
         seed=args.seed,
+        batch_size=args.batch_size,
+        dataset_sha256=dataset_sha256,
         force=args.force_hpo,
     )
     model = train_final_model(data_module, best_params, max_epochs=args.max_epochs)
@@ -338,6 +383,12 @@ def main() -> None:
         "n_trials": args.n_trials,
         "max_epochs": args.max_epochs,
         "batch_size": args.batch_size,
+        "dataset_sha256": dataset_sha256,
+        "preprocessing": {
+            "split": {"train": 0.7, "validation": DEFAULT_VAL_SIZE, "test": DEFAULT_TEST_SIZE},
+            "clip_quantiles": list(DEFAULT_CLIP_QUANTILES),
+            "scaler": "StandardScaler fit on train split only",
+        },
         "hpo_cache_version": HPO_CACHE_VERSION,
         "best_params": best_params,
         "temperature": calibrator.temperature,
