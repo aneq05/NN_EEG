@@ -40,9 +40,9 @@ def test_hpo_cache_requires_matching_experiment_config(tmp_path):
 
 def test_file_sha256_hashes_dataset_fingerprint(tmp_path):
     path = tmp_path / "data.csv"
-    path.write_text("x,y\n1,2\n", encoding="utf-8")
+    path.write_bytes(b"x,y\n1,2\n")
 
-    assert file_sha256(path) == "5862881949e3a662534aa26be2ffd7ba1f6a54f4a755d1f3f4d2912b8549e9d4"
+    assert file_sha256(path) == "81bf9fa83c6f7f151bd491a98cd7d933de3965289e3ebd77c6c425f7eaa16392"
 
 
 def test_hpo_uses_best_validation_score():
